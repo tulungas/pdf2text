@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<title>PDF to Text Extractor</title>
+
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+
+<!-- Tesseract OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js"></script>
+
+<style>
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+
+html,body{
+    margin:0;
+    min-height:100%;
+}
+
+body{
+    font-family:Arial,sans-serif;
+    background:#f1f5f9;
+    color:#0f172a;
+    padding:20px;
+}
+
+.container{
+    max-width:1000px;
+    margin:auto;
+}
+
+header{
+    text-align:center;
+    margin:20px 0 40px;
+}
+
+h1{
+    margin:0;
+    font-size:clamp(32px,7vw,54px);
+    font-weight:800;
+}
+
+.title-blue{
+    color:#2563eb;
+}
+
+.subtitle{
+    color:#64748b;
+    font-size:17px;
+    line-height:1.5;
+    margin-top:10px;
+}
+
+.drop-zone{
+    border:2px dashed #cbd5e1;
+    border-radius:28px;
+    background:white;
+    padding:60px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:.2s;
+    box-shadow:0 8px 25px rgba(0,0,0,.06);
+}
+
+.drop-zone.active{
+    border-color:#2563eb;
+    background:#eff6ff;
+    transform:scale(1.01);
+}
+
+.folder{
+    font-size:65px;
+    margin-bottom:15px;
+}
+
+.drop-title{
+    font-size:25px;
+    font-weight:bold;
+}
+
+.drop-subtitle{
+    color:#94a3b8;
+    margin-top:10px;
+}
+
+input[type=file]{
+    display:none;
+}
+
+.progress-box{
+    display:none;
+    margin:30px auto;
+    max-width:750px;
+}
+
+.progress-top{
+    display:flex;
+    justify-content:space-between;
+    font-size:14px;
+    font-weight:bold;
+    color:#2563eb;
+    margin-bottom:8px;
+}
+
+.progress-track{
+    width:100%;
+    height:12px;
+    background:#e2e8f0;
+    border-radius:20px;
+    overflow:hidden;
+}
+
+.progress-bar{
+    width:0%;
+    height:100%;
+    background:#2563eb;
+    transition:width .25s;
+}
+
+.status{
+    text-align:center;
+    margin-top:10px;
+    color:#64748b;
+    font-size:14px;
+}
+
+.actions{
+    display:none;
+    gap:12px;
+    margin:25px 0;
+    flex-wrap:wrap;
+}
+
+button{
+    border:0;
+    cursor:pointer;
+    border-radius:13px;
+    padding:15px 20px;
+    font-size:16px;
+    font-weight:bold;
+}
+
+.copy{
+    background:#0f172a;
+    color:white;
+    flex:1;
+}
+
+.download{
+    background:white;
+    color:#0f172a;
+    border:2px solid #e2e8f0;
+    flex:1;
+}
+
+.clear{
+    background:#fee2e2;
+    color:#dc2626;
+}
+
+.page{
+    background:white;
+    margin-bottom:20px;
+    border-left:5px solid #2563eb;
+    border-radius:0 15px 15px 0;
+    padding:22px;
+    box-shadow:0 5px 18px rgba(0,0,0,.05);
+}
+
+.page-header{
+    color:#2563eb;
+    font-weight:bold;
+    font-size:14px;
+    border-bottom:1px solid #e2e8f0;
+    padding-bottom:8px;
+    margin-bottom:15px;
+}
+
+.page-text{
+    white-space:pre-wrap;
+    line-height:1.65;
+    color:#334155;
+    word-break:break-word;
+}
+
+.error{
+    background:#fee2e2;
+    color:#991b1b;
+    padding:15px;
+    border-radius:12px;
+    margin-top:20px;
+}
+
+.mode{
+    display:inline-block;
+    margin-top:8px;
+    padding:5px 10px;
+    border-radius:20px;
+    background:#eff6ff;
+    color:#2563eb;
+    font-size:12px;
+    font-weight:bold;
+}
+
+@media(max-width:600px){
+
+    body{
+        padding:12px;
+    }
+
+    .drop-zone{
+        padding:45px 15px;
+    }
+
+    .drop-title{
+        font-size:21px;
+    }
+
+    .actions{
+        flex-direction:column;
+    }
+
+    button{
+        width:100%;
+    }
+
+    .page{
+        padding:17px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<header>
+    <h1>📄 PDF to <span class="title-blue">Text</span></h1>
+
+    <div class="subtitle">
+        Extract text from normal PDFs and scanned/image PDFs using OCR.
+    </div>
+</header>
+
+
+<!-- Upload -->
+
+<div id="dropZone" class="drop-zone">
+
+    <input
+        type="file"
+        id="fileInput"
+        accept=".pdf,application/pdf"
+    >
+
+    <div class="folder">📂</div>
+
+    <div class="drop-title">
+        Drag & Drop PDF here
+    </div>
+
+    <div class="drop-subtitle">
+        or click to browse from your device
+    </div>
+
+</div>
+
+
+<!-- Progress -->
+
+<div id="progressBox" class="progress-box">
+
+    <div class="progress-top">
+        <span id="progressStatus">Preparing...</span>
+        <span id="percent">0%</span>
+    </div>
+
+    <div class="progress-track">
+        <div id="progressBar" class="progress-bar"></div>
+    </div>
+
+    <div id="ocrStatus" class="status"></div>
+
+</div>
+
+
+<!-- Actions -->
+
+<div id="actions" class="actions">
+
+    <button id="copyBtn" class="copy">
+        📋 Copy Full Text
+    </button>
+
+    <button id="downloadBtn" class="download">
+        💾 Download .txt
+    </button>
+
+    <button id="clearBtn" class="clear">
+        Clear
+    </button>
+
+</div>
+
+
+<!-- Output -->
+
+<div id="output"></div>
+
+</div>
+
+
+<script>
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+
+
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+
+const progressBox = document.getElementById("progressBox");
+const progressBar = document.getElementById("progressBar");
+const percent = document.getElementById("percent");
+
+const progressStatus = document.getElementById("progressStatus");
+const ocrStatus = document.getElementById("ocrStatus");
+
+const output = document.getElementById("output");
+const actions = document.getElementById("actions");
+
+const copyBtn = document.getElementById("copyBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const clearBtn = document.getElementById("clearBtn");
+
+
+let finalText = "";
+let ocrWorker = null;
+
+
+/* =========================
+   UPLOAD
+========================= */
+
+dropZone.addEventListener("click", function(){
+    fileInput.click();
+});
+
+
+fileInput.addEventListener("change", function(e){
+
+    if(e.target.files.length > 0){
+        handlePDF(e.target.files[0]);
+    }
+
+});
+
+
+/* =========================
+   DRAG DROP
+========================= */
+
+["dragenter","dragover"].forEach(function(eventName){
+
+    dropZone.addEventListener(eventName,function(e){
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        dropZone.classList.add("active");
+
+    });
+
+});
+
+
+["dragleave","drop"].forEach(function(eventName){
+
+    dropZone.addEventListener(eventName,function(e){
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        dropZone.classList.remove("active");
+
+    });
+
+});
+
+
+dropZone.addEventListener("drop",function(e){
+
+    const files = e.dataTransfer.files;
+
+    if(files.length > 0){
+        handlePDF(files[0]);
+    }
+
+});
+
+
+/* =========================
+   PROGRESS
+========================= */
+
+function setProgress(value,status){
+
+    value = Math.max(0,Math.min(100,value));
+
+    progressBar.style.width = value + "%";
+    percent.textContent = Math.round(value) + "%";
+
+    if(status){
+        progressStatus.textContent = status;
+    }
+
+}
+
+
+/* =========================
+   MAIN PDF PROCESSOR
+========================= */
+
+async function handlePDF(file){
+
+    if(!file){
+        return;
+    }
+
+
+    const isPDF =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+
+
+    if(!isPDF){
+
+        alert("Please select a PDF file.");
+        return;
+
+    }
+
+
+    output.innerHTML = "";
+    actions.style.display = "none";
+
+    progressBox.style.display = "block";
+
+    finalText = "";
+
+    setProgress(0,"Loading PDF...");
+
+    ocrStatus.textContent = "";
+
+
+    try{
+
+        const buffer = await file.arrayBuffer();
+
+        const pdf = await pdfjsLib.getDocument({
+            data:new Uint8Array(buffer)
+        }).promise;
+
+
+        let allPages = [];
+
+
+        /*
+         * Create OCR worker only once.
+         *
+         * English is loaded first.
+         */
+
+        setProgress(3,"Starting OCR engine...");
+
+        ocrWorker = await Tesseract.createWorker(
+            "eng",
+            1,
+            {
+                logger:function(message){
+
+                    if(message.status){
+
+                        ocrStatus.textContent =
+                            message.status +
+                            (message.progress
+                                ? " " +
+                                  Math.round(message.progress * 100) +
+                                  "%"
+                                : "");
+
+                    }
+
+                }
+            }
+        );
+
+
+        /*
+         * Process every page
+         */
+
+        for(let pageNumber = 1;
+            pageNumber <= pdf.numPages;
+            pageNumber++){
+
+            const page = await pdf.getPage(pageNumber);
+
+
+            setProgress(
+                ((pageNumber - 1) / pdf.numPages) * 100,
+                "Reading page " +
+                pageNumber +
+                " of " +
+                pdf.numPages
+            );
+
+
+            /*
+             * First try normal PDF text extraction.
+             */
+
+            const textContent =
+                await page.getTextContent();
+
+
+            let nativeText =
+                extractNativeText(textContent);
+
+
+            /*
+             * If PDF contains actual text,
+             * use it directly.
+             */
+
+            if(nativeText.trim().length > 10){
+
+                allPages.push({
+                    number:pageNumber,
+                    text:nativeText,
+                    mode:"Text extraction"
+                });
+
+            }
+
+            /*
+             * Otherwise render page to canvas
+             * and run OCR.
+             */
+
+            else{
+
+                setProgress(
+                    ((pageNumber - 1) / pdf.numPages) * 100,
+                    "OCR processing page " +
+                    pageNumber +
+                    " of " +
+                    pdf.numPages
+                );
+
+
+                const canvas =
+                    await renderPageToCanvas(page);
+
+
+                const result =
+                    await ocrWorker.recognize(canvas);
+
+
+                let ocrText =
+                    cleanOCRText(result.data.text);
+
+
+                allPages.push({
+                    number:pageNumber,
+                    text:ocrText,
+                    mode:"OCR"
+                });
+
+
+                canvas.width = 1;
+                canvas.height = 1;
+            }
+
+
+            /*
+             * Update progress
+             */
+
+            const pageProgress =
+                (pageNumber / pdf.numPages) * 100;
+
+            setProgress(
+                pageProgress,
+                "Completed page " +
+                pageNumber +
+                " of " +
+                pdf.numPages
+            );
+
+
+            /*
+             * Show page immediately
+             */
+
+            showPage(
+                pageNumber,
+                allPages[allPages.length - 1].text,
+                allPages[allPages.length - 1].mode
+            );
+
+        }
+
+
+        /*
+         * Terminate OCR worker
+         */
+
+        if(ocrWorker){
+
+            await ocrWorker.terminate();
+
+            ocrWorker = null;
+
+        }
+
+
+        /*
+         * Build final text
+         */
+
+        finalText = allPages.map(function(page){
+
+            return (
+                "--- PAGE " +
+                page.number +
+                " ---\n\n" +
+                page.text
+            );
+
+        }).join("\n\n");
+
+
+        setProgress(100,"Completed");
+
+        ocrStatus.textContent =
+            "Text extraction completed successfully.";
+
+
+        actions.style.display = "flex";
+
+
+    }
+    catch(error){
+
+        console.error(error);
+
+        if(ocrWorker){
+
+            try{
+                await ocrWorker.terminate();
+            }
+            catch(e){}
+
+            ocrWorker = null;
+
+        }
+
+
+        output.innerHTML =
+            '<div class="error">' +
+            "<strong>Processing failed</strong><br><br>" +
+            escapeHTML(error.message || String(error)) +
+            "</div>";
+
+
+        setProgress(0,"Processing failed");
+
+        ocrStatus.textContent =
+            "Please try another PDF.";
+
+    }
+
+}
+
+
+/* =========================
+   NATIVE PDF TEXT
+========================= */
+
+function extractNativeText(textContent){
+
+    const items = textContent.items || [];
+
+
+    if(items.length === 0){
+        return "";
+    }
+
+
+    /*
+     * Sort according to PDF coordinates.
+     *
+     * transform[5] = Y
+     * transform[4] = X
+     */
+
+    items.sort(function(a,b){
+
+        const ay = a.transform[5];
+        const by = b.transform[5];
+
+        const ax = a.transform[4];
+        const bx = b.transform[4];
+
+
+        if(Math.abs(ay - by) > 5){
+
+            return by - ay;
+
+        }
+
+
+        return ax - bx;
+
+    });
+
+
+    let result = "";
+    let previousY = null;
+
+
+    items.forEach(function(item){
+
+        const text = item.str || "";
+
+        if(!text.trim()){
+            return;
+        }
+
+
+        const currentY = item.transform[5];
+
+
+        if(previousY !== null){
+
+            if(Math.abs(currentY - previousY) > 5){
+
+                result += "\n";
+
+            }
+            else{
+
+                /*
+                 * Add space only when required.
+                 */
+
+                if(
+                    !result.endsWith(" ") &&
+                    !result.endsWith("\n")
+                ){
+
+                    result += " ";
+
+                }
+
+            }
+
+        }
+
+
+        result += text;
+
+        previousY = currentY;
+
+    });
+
+
+    return result.trim();
+
+}
+
+
+/* =========================
+   RENDER PDF PAGE
+========================= */
+
+async function renderPageToCanvas(page){
+
+    /*
+     * 2.2x gives OCR much better accuracy
+     * than using the original small resolution.
+     */
+
+    const scale = 2.2;
+
+    const viewport =
+        page.getViewport({
+            scale:scale
+        });
+
+
+    const canvas =
+        document.createElement("canvas");
+
+
+    const context =
+        canvas.getContext("2d",{
+            willReadFrequently:true
+        });
+
+
+    canvas.width =
+        Math.ceil(viewport.width);
+
+    canvas.height =
+        Math.ceil(viewport.height);
+
+
+    /*
+     * White background.
+     * This helps OCR with transparent PDFs.
+     */
+
+    context.fillStyle = "#ffffff";
+
+    context.fillRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    await page.render({
+        canvasContext:context,
+        viewport:viewport
+    }).promise;
+
+
+    return canvas;
+
+}
+
+
+/* =========================
+   OCR CLEANUP
+========================= */
+
+function cleanOCRText(text){
+
+    if(!text){
+        return "";
+    }
+
+
+    return text
+
+        .replace(/\r/g,"")
+
+        /*
+         * Remove excessive spaces
+         */
+
+        .replace(/[ \t]+/g," ")
+
+        /*
+         * Remove spaces at line ends
+         */
+
+        .replace(/[ \t]+\n/g,"\n")
+
+        /*
+         * Remove excessive empty lines
+         */
+
+        .replace(/\n{3,}/g,"\n\n")
+
+        .trim();
+
+}
+
+
+/* =========================
+   DISPLAY PAGE
+========================= */
+
+function showPage(pageNumber,text,mode){
+
+    const pageDiv =
+        document.createElement("div");
+
+
+    pageDiv.className = "page";
+
+
+    pageDiv.innerHTML =
+
+        '<div class="page-header">' +
+
+            "PAGE " +
+            pageNumber +
+
+            ' <span class="mode">' +
+            escapeHTML(mode) +
+            "</span>" +
+
+        "</div>" +
+
+        '<div class="page-text">' +
+
+            escapeHTML(text || "[No text detected]") +
+
+        "</div>";
+
+
+    output.appendChild(pageDiv);
+
+}
+
+
+/* =========================
+   HTML ESCAPE
+========================= */
+
+function escapeHTML(value){
+
+    return String(value)
+
+        .replace(/&/g,"&amp;")
+
+        .replace(/</g,"&lt;")
+
+        .replace(/>/g,"&gt;")
+
+        .replace(/"/g,"&quot;")
+
+        .replace(/'/g,"&#039;");
+
+}
+
+
+/* =========================
+   COPY
+========================= */
+
+copyBtn.addEventListener("click",async function(){
+
+    if(!finalText){
+        return;
+    }
+
+
+    try{
+
+        await navigator.clipboard.writeText(finalText);
+
+        const old =
+            copyBtn.textContent;
+
+        copyBtn.textContent =
+            "✅ Content Copied!";
+
+
+        setTimeout(function(){
+
+            copyBtn.textContent = old;
+
+        },2000);
+
+    }
+    catch(error){
+
+        /*
+         * Fallback for browsers where
+         * clipboard API is unavailable.
+         */
+
+        const textarea =
+            document.createElement("textarea");
+
+        textarea.value = finalText;
+
+        document.body.appendChild(textarea);
+
+        textarea.select();
+
+        document.execCommand("copy");
+
+        textarea.remove();
+
+
+        copyBtn.textContent =
+            "✅ Content Copied!";
+
+
+        setTimeout(function(){
+
+            copyBtn.textContent =
+                "📋 Copy Full Text";
+
+        },2000);
+
+    }
+
+});
+
+
+/* =========================
+   DOWNLOAD
+========================= */
+
+downloadBtn.addEventListener("click",function(){
+
+    if(!finalText){
+        return;
+    }
+
+
+    const blob =
+        new Blob(
+            [finalText],
+            {
+                type:"text/plain;charset=utf-8"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(blob);
+
+
+    const link =
+        document.createElement("a");
+
+
+    link.href = url;
+
+    link.download =
+        "Extracted_Text.txt";
+
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+
+    setTimeout(function(){
+
+        URL.revokeObjectURL(url);
+
+    },1000);
+
+});
+
+
+/* =========================
+   CLEAR
+========================= */
+
+clearBtn.addEventListener("click",function(){
+
+    location.reload();
+
+});
+
+</script>
+
+</body>
+</html>
